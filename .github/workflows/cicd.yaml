@@ -51,6 +51,8 @@ jobs:
       - name: argocd app sync
         shell: bash
         run: |
+           kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+           sleep 5
            argocd login argocd-server.argocd \
             --insecure \
             --grpc-web \
