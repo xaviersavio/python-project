@@ -53,7 +53,7 @@ jobs:
         run: |
            kubectl port-forward svc/argocd-server -n argocd 8080:443 &
            sleep 5
-           argocd login argocd-server.argocd \
+           argocd login localhost:8080 \
             --insecure \
             --grpc-web \
             --username admin \
