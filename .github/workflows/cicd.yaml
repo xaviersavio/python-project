@@ -2,10 +2,10 @@ name: cicd
 
 on:
   push:
-    paths:
-      - src/**
     branches:
       - main
+    paths:
+      - src/**
 
 jobs:
   ci:
@@ -25,39 +25,64 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build image (lightweight)
+      - name: Build Docker image
         run: |
-          docker build -t xaviersavio1978/python-app:${GITHUB_SHA::6} .
+          docker build -t xaviersavio1978/python-app:${{ steps.vars.outputs.sha_short }} .
 
-      - name: Push image
+      - name: Push Docker image
         run: |
-          docker push xaviersavio1978/python-app:${GITHUB_SHA::6}
+          docker push xaviersavio1978/python-app:${{ steps.vars.outputs.sha_short }}
 
   cd:
     needs: ci
     runs-on: self-hosted
-   
+
     steps:
-      - name: argocd app sync
+      - name: Install ArgoCD CLI
+        run: |
+          set -e
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/argocd
+
+          # verify install
+          which argocd
+          argocd version --client
+
+      - name: Sync app via ArgoCD
         shell: bash
         run: |
           set -e
-          kubectl port-forward svc/argocd-server -n argocd 8080:443 > /tmp/port-forward.log 2>&1 &
-    
 
+          # Start port-forward
+          kubectl port-forward svc/argocd-server -n argocd 8080:443 > /tmp/port-forward.log 2>&1 &
+
+          # Wait for port-forward
           for i in {1..20}; do
-           nc -z localhost 8080 && echo "Port-forward ready" && break
-           echo "Waiting for port-forward..."
-           sleep 2
+            if (echo > /dev/tcp/localhost/8080) >/dev/null 2>&1; then
+              echo "Port-forward ready"
+              break
+            fi
+            echo "Waiting for port-forward..."
+            sleep 2
           done
 
+          # Fail if not ready
+          if ! (echo > /dev/tcp/localhost/8080) >/dev/null 2>&1; then
+            echo "Port-forward failed"
+            cat /tmp/port-forward.log
+            exit 1
+          fi
 
-
+          # Login to ArgoCD
           argocd login localhost:8080 \
-          --insecure \
-          --grpc-web \
-          --username admin \
-          --password ${{ secrets.ARGOCD_PASSWORD }}
+            --insecure \
+            --grpc-web \
+            --username admin \
+            --password ${{ secrets.ARGOCD_PASSWORD }}
 
-
+          # Sync application
           argocd app sync python-app
+
+          # Wait for healthy state (important)
+          argocd app wait python-app --health --timeout 180
