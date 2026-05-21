@@ -25,25 +25,35 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build image
+      - name: Build image (lightweight)
         run: |
-          docker build -t xaviersavio1978/python-app:${{ steps.vars.outputs.sha_short }} .
-          docker tag xaviersavio1978/python-app:${{ steps.vars.outputs.sha_short }} xaviersavio1978/python-app:latest
+          docker build -t xaviersavio1978/python-app:${GITHUB_SHA::6} .
 
       - name: Push image
         run: |
-          docker push xaviersavio1978/python-app:${{ steps.vars.outputs.sha_short }}
-          docker push xaviersavio1978/python-app:latest
+          docker push xaviersavio1978/python-app:${GITHUB_SHA::6}
 
-      # ✅ THIS replaces your entire CD job
-      - name: Update Kubernetes manifest
+  cd:
+    needs: ci
+    runs-on: self-hosted
+   
+    steps:
+      - name: Install Argo CD CLI
         run: |
-          sed -i "s|image: .*|image: xaviersavio1978/python-app:${{ steps.vars.outputs.sha_short }}|" k8s/deployment.yaml
+         curl -sSL -o argocd \
+          https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+         chmod +x argocd
+         sudo mv argocd /usr/local/bin/
 
-      - name: Commit and push changes
+      - name: Verify ArgoCD CLI
+        run: argocd version
+
+      - name: argocd app sync
+        shell: bash
         run: |
-          git config --global user.name "ci-bot"
-          git config --global user.email "ci@example.com"
-          git add k8s/deployment.yaml
-          git commit -m "Update image to ${{ steps.vars.outputs.sha_short }}" || echo "No changes"
-          git push
+           argocd login argocd-server.argocd \
+            --insecure \
+            --grpc-web \
+            --username admin \
+            --password   ${{ secrets.ARGOCD_PASSWORD }}
+           argocd app sync python-app 
