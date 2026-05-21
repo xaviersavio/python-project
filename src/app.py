@@ -7,7 +7,7 @@ app = Flask(__name__)
 @app.route('/api/v1/details')
 def details():
     return jsonify({
-        "message": "Hello World ,this is serioud coding v2 ! dd  ! n",
+        "message": "Hello World ,this is serioud coding v2 ! dd gg  ! n",
         "datetime": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "hostname": socket.gethostname()
     })

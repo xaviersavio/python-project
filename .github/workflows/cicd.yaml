@@ -25,25 +25,25 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build image (lightweight)
+      - name: Build image
         run: |
-          docker build -t xaviersavio1978/python-app:${GITHUB_SHA::6} .
+          docker build -t xaviersavio1978/python-app:${{ steps.vars.outputs.sha_short }} .
+          docker tag xaviersavio1978/python-app:${{ steps.vars.outputs.sha_short }} xaviersavio1978/python-app:latest
 
       - name: Push image
         run: |
-          docker push xaviersavio1978/python-app:${GITHUB_SHA::6}
+          docker push xaviersavio1978/python-app:${{ steps.vars.outputs.sha_short }}
+          docker push xaviersavio1978/python-app:latest
 
-  cd:
-    needs: ci
-    runs-on: self-hosted
-   
-    steps:
-      - name: argocd app sync
-        shell: bash
+      # ✅ THIS replaces your entire CD job
+      - name: Update Kubernetes manifest
         run: |
-           argocd login argocd-server.argocd \
-            --insecure \
-            --grpc-web \
-            --username admin \
-            --password   ${{ secrets.ARGOCD_PASSWORD }}
-           argocd app sync python-app 
+          sed -i "s|image: .*|image: xaviersavio1978/python-app:${{ steps.vars.outputs.sha_short }}|" k8s/deployment.yaml
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "ci-bot"
+          git config --global user.email "ci@example.com"
+          git add k8s/deployment.yaml
+          git commit -m "Update image to ${{ steps.vars.outputs.sha_short }}" || echo "No changes"
+          git push
