@@ -38,24 +38,25 @@ jobs:
     runs-on: self-hosted
    
     steps:
-      - name: Install Argo CD CLI
-        run: |
-         curl -sSL -o argocd \
-          https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-         chmod +x argocd
-         sudo mv argocd /usr/local/bin/
-
-      - name: Verify ArgoCD CLI
-        run: argocd version
-
       - name: argocd app sync
         shell: bash
         run: |
-           kubectl port-forward svc/argocd-server -n argocd 8080:443 &
-           sleep 5
-           argocd login localhost:8080 \
-            --insecure \
-            --grpc-web \
-            --username admin \
-            --password   ${{ secrets.ARGOCD_PASSWORD }}
-           argocd app sync python-app 
+          set -e
+          kubectl port-forward svc/argocd-server -n argocd 8080:443 > /tmp/port-forward.log 2>&1 &
+    
+
+          for i in {1..20}; do
+          nc -z localhost 8080 && echo "Port-forward ready" && break
+          echo "Waiting for port-forward..."
+          sleep 2
+
+
+
+          argocd login localhost:8080 \
+          --insecure \
+          --grpc-web \
+          --username admin \
+          --password ${{ secrets.ARGOCD_PASSWORD }}
+
+
+          argocd app sync python-app
