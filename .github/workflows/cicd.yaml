@@ -46,9 +46,10 @@ jobs:
     
 
           for i in {1..20}; do
-          nc -z localhost 8080 && echo "Port-forward ready" && break
-          echo "Waiting for port-forward..."
-          sleep 2
+           nc -z localhost 8080 && echo "Port-forward ready" && break
+           echo "Waiting for port-forward..."
+           sleep 2
+          done
 
 
 
